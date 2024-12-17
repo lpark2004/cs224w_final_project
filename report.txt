@@ -1,0 +1,132 @@
+Hierarchical Link Prediction for Drug-Drug Interactions
+Luke Park, Irfan Nafi, Ray Hotate
+1. Introduction
+Graph Machine Learning (Graph ML) has emerged as a transformative approach to solving complex real-world problems by leveraging the inherent structure of graph-based data. In drug discovery and pharmacology, this approach is especially promising, where molecular, biological, and interaction networks can be modeled as graphs to extract meaningful insights. Predicting drug-drug interactions (DDIs) is a critical challenge in healthcare, as interactions between medications can lead to unforeseen and potentially severe adverse effects. Early identification of these interactions is crucial for ensuring patient safety and optimizing drug efficacy.
+Traditional approaches to DDI prediction often rely on pharmacokinetic models or large-scale clinical data analysis, which are time-consuming and limited in generalizability (Cami et al., 2013). More recently, graph-based machine learning methods, including Graph Neural Networks (GNNs), have shown the ability to predict DDIs effectively by leveraging the topological structure of interaction networks (Sun et al., 2019). These methods provide a scalable and efficient alternative to traditional techniques, addressing the limitations of insufficient clinical evidence and high-dimensional data representation.
+Our study introduces a hierarchical approach using Graph Attention Networks (GATs) to enhance DDI prediction. Unlike previous methods, our hierarchical model combines local embeddings, which capture immediate interaction patterns, with community-level embeddings, which represent broader network structures. This dual-level approach allows us to incorporate both fine-grained and global perspectives, aiming to improve the robustness and accuracy of predictions.
+2. Motivation
+Drug interactions can exhibit synergistic or antagonistic effects that significantly alter therapeutic outcomes. Despite substantial advances in computational techniques, many prediction models fail to generalize to unseen data, particularly when tested on drugs with novel mechanisms of action or targeting new proteins. The ogbl-ddi dataset, which represents a comprehensive drug-drug interaction network, provides a unique opportunity to explore advanced modeling techniques in this domain. Its challenging protein-target split ensures that test data involve drugs interacting with different proteins than those in the training data, simulating real-world scenarios where drugs with novel targets emerge (Min & Bae, 2017).
+Our hierarchical GAT model addresses these challenges by leveraging attention mechanisms to focus on relevant portions of the graph at both local and community levels. This design not only enhances interpretability but also offers insights into how drugs with disparate biological mechanisms may interact, thus contributing to a safer drug development pipeline.
+3. Dataset
+For this project, we utilized the ogbl-ddi dataset, a well-curated graph dataset representing the drug-drug interaction network. This dataset comprises nodes corresponding to FDA-approved or experimental drugs and edges representing interactions between these drugs. These interactions indicate cases where the combined effect of two drugs significantly deviates from their independent actions.
+The ogbl-ddi dataset is particularly suited for this study because of its homogeneous, unweighted, and undirected graph structure. The task is to predict interactions between drugs by leveraging known interactions, with the goal of ranking true interactions higher than negative samples. To evaluate the practical utility of our approach, we implemented a protein-target split for dataset splitting. This approach ensures that the test set contains drugs targeting proteins significantly different from those in the training and validation sets. By creating this split, we aim to assess the ability of our model to predict interactions for drugs with novel biological mechanisms, which is crucial for identifying groundbreaking discoveries in pharmacology.
+4. Prior Work
+The paper "Can GNNs Learn Link Heuristics" by Shuming Liang et al. investigates the effectiveness of GNNs in learning structural information, specifically in the case of link prediction tasks. Although structural identification is not the primary task of link prediction, encapsulating such information is important and would help performance. Their paper questions the ability of GNN aggregation methods in capturing more nuanced and complex structural information and attempts to alleviate this problem by explicitly passing in features that measure certain structural properties.
+One of the key heuristics in Liang's paper is the common neighbors metric. The common neighbors metric looks at the sets of neighbors between two entities and if the sets have a non-zero intersection then the two nodes have a common neighbors. In their paper the run several ablations studies via mean aggregation and graph attention aggregation methods to show that standard GNNs cannot accurately determine whether or not two nodes share a common neighbor. The importance of the common neighbor is further amplified by the fact that drug interactions often occur in multi-hop relations.
+The authors further emphasize that the inability of standard GNN aggregation schemes to effectively capture the number of common neighbors stems from the inherent limitations of set-based pooling operations. These aggregation methods, such as mean pooling and attention mechanisms, treat the node neighborhood as an unordered set. Consequently, they fail to encode structural properties such as the size of the intersection of neighborhoods or the presence of specific patterns like common neighbors. Liang et al. argue that this shortcoming significantly hampers the performance of GNN-based link prediction models, particularly in applications where multi-hop relations play a critical role, such as drug interaction networks.
+To address this limitation, the paper proposes the incorporation of explicit structural features into GNN architectures. These features are derived from traditional link prediction heuristics, such as the Common Neighbors (CN), Adamic-Adar (AA) index, and Jaccard coefficient, which quantify various aspects of the structural relationship between node pairs. By encoding these metrics as additional features or trainable embeddings, Liang et al. demonstrate that GNN-based models can better capture structural dependencies and improve link prediction performance.
+In their experimental framework, Liang et al. evaluate the impact of integrating these structural features across multiple datasets with varying graph densities. Their results highlight a strong positive correlation between graph density and the benefits of incorporating structural heuristics. Specifically, on dense graphs, the inclusion of structural features, such as CN, led to significant performance improvements, validating the hypothesis that explicit structural encoding compensates for the limitations of GNN aggregation schemes.
+Additionally, the paper critiques existing methods such as SEAL and NBFNet, which are popular in the domain of link prediction. SEAL-type models rely on the classification of enclosing subgraphs and assume that GNNs can learn structural heuristics like CN implicitly. However, the findings in Liang et al.'s paper reveal that these models fail to encode structural information effectively due to the same aggregation limitations observed in standard GNNs. Similarly, NBFNet's edge-centric approach lacks the capacity to train powerful node embeddings, limiting its performance on dense graphs.
+The insights from Liang et al.'s work provide a strong argument for hybrid approaches that combine the strengths of traditional heuristics with the representational power of GNNs. Their findings underscore the importance of explicitly incorporating structural features into GNN-based link prediction frameworks, paving the way for more robust and interpretable models that can operate effectively across a wide range of graph structures.
+5. Methods
+Building on the foundational insights from the work of Liang et al. in "Can GNNs Learn Link Heuristics?", our team sought to address the limitations of standard GNNs in capturing nuanced structural information critical for link prediction tasks. Liang et al.'s work emphasized the challenges faced by GNN aggregation methods in encoding pair-specific heuristics such as the number of common neighbors, highlighting the inherent limitations of set-based pooling operations. Inspired by their findings and the need to improve GNN performance on tasks requiring complex structural reasoning, we extended this line of research by introducing a novel hierarchical attention-based graph neural network architecture.
+Our model integrates hierarchical and community-based attention mechanisms to enhance structural representation learning. While Liang et al. proposed incorporating explicit structural heuristics, we extended this approach by embedding these heuristics within a broader framework of hierarchical feature interactions. Our architecture, termed the Hierarchical Community-based Graph Attention Model (HierarchicalComHG), was specifically designed to leverage both local and global graph structures through multi-scale attention mechanisms.
+A key innovation in our work lies in the use of hierarchical attention mechanisms to model interactions at multiple levels of graph organization. We incorporated community structures derived from algorithms such as the Leiden method, embedding these structural roles into the graph's representation. Two distinct attention layers - local and global - were employed to capture fine-grained node interactions within communities and broader relational patterns across them. Local attention mechanisms focused on preserving the detailed structural relationships within neighborhoods, while global attention mechanisms captured the influence of higher-order communities, providing a comprehensive hierarchical understanding of the graph.
+In addition to hierarchical attention, we introduced a multi-level feature fusion process that synthesizes local, global, and community-based features. This fusion was achieved through a hierarchical multi-layer perceptron (MLP), which combined original graph embeddings from extended ComHG layers, node interactions derived through local attention mechanisms, and global community-driven interactions. By integrating these components, the model effectively balances the importance of granular local features and larger-scale structural patterns, addressing a critical gap in traditional GNN designs.
+To further enhance structural learning, we adopted and extended explicit structural heuristics such as Common Neighbors (CN), Adamic-Adar, and Jaccard coefficients. These heuristics were encoded as additional trainable embeddings, complementing the learned features generated by the GNN. This integration of heuristic-based and learned features allowed the model to better capture relational properties that are vital for link prediction, particularly in dense and complex graphs.
+Our architecture also incorporated multi-head attention mechanisms that enabled flexible and adaptive processing of node and adjacency matrix features. By employing combinatorial strategies such as concatenation and multiplication, the attention layers dynamically adapted to the graph's structural characteristics, further improving the model's ability to represent intricate graph relationships. This innovation, coupled with the hierarchical modeling approach, provided a significant improvement in the model's capacity to represent long-range dependencies and higher-order graph interactions.
+class HierarchicalComHG(Predictor):
+    def __init__(self, args):
+        super().__init__(args)
+        
+        # Get the actual dimension being used (from parent class logic)
+        dim_hidden = args.dim_in if args.dim_hidden is None else args.dim_hidden
+        
+        # Additional components for hierarchical model
+        self.text_encoder = nn.Linear(args.text_dim, args.dim_encoding)
+        self.relation_encoder = nn.Linear(args.relation_dim, args.dim_encoding)
+        
+        # Local and Global Attention (in addition to existing ComHG layers)
+        self.local_attention = nn.ModuleList([
+            MultiHeadAttention(args.dim_encoding, args.n_heads) 
+            for _ in range(args.n_layers)
+        ])
+        
+        self.global_attention = nn.ModuleList([
+            MultiHeadAttention(args.dim_encoding, args.n_heads)
+            for _ in range(args.n_layers)
+        ])
+        
+        # Community-based components
+        self.community_encoder = nn.Linear(args.num_communities, args.dim_encoding)
+        
+        # Additional MLP for combining hierarchical features
+        self.hierarchical_mlp = nn.Sequential(
+            nn.Linear(dim_hidden * 3, dim_hidden * 2),
+            nn.ReLU(),
+            nn.Dropout(args.dropout),
+            nn.Linear(dim_hidden * 2, dim_hidden)
+        )
+
+    def forward(self, graph, edge_batch):
+        # Original ComHG processing
+        x_original = super().forward(graph, edge_batch)
+        
+        # Additional hierarchical processing
+        if hasattr(graph, 'text_features') and hasattr(graph, 'communities'):
+            # Text embedding processing
+            text_emb = self.text_encoder(graph.text_features)
+            
+            # Local attention
+            local_features = text_emb
+            for layer in self.local_attention:
+                local_features = layer(local_features, graph.adj)
+            
+            # Global community-based attention
+            community_emb = scatter_mean(text_emb, graph.communities, dim=0)
+            global_features = text_emb
+            for layer in self.global_attention:
+                global_features = layer(global_features, community_emb)
+            
+            # Community encoding
+            community_features = self.community_encoder(
+                F.one_hot(graph.communities, num_classes=self.args.num_communities).float()
+            )
+            
+            # Combine features
+            combined_features = torch.cat([
+                x_original,
+                local_features[edge_batch[:, 0]] * local_features[edge_batch[:, 1]],
+                global_features[edge_batch[:, 0]] * global_features[edge_batch[:, 1]]
+            ], dim=-1)
+            
+            # Final prediction combining original and hierarchical features
+            x = self.hierarchical_mlp(combined_features)
+            return torch.sigmoid(x)
+        
+        # Fallback to original prediction if hierarchical features aren't available
+        return x_original
+class MultiHeadAttention(nn.Module):
+    def __init__(self, dim_in, n_heads):
+        super().__init__()
+        self.n_heads = n_heads
+        self.dim_k = dim_in // n_heads
+        
+        self.Q = nn.Linear(dim_in, dim_in)
+        self.K = nn.Linear(dim_in, dim_in)
+        self.V = nn.Linear(dim_in, dim_in)
+        
+        self.out = nn.Linear(dim_in, dim_in)
+        
+    def forward(self, x, adj, mask=None):
+        B = x.size(0)
+        N = x.size(0) if len(x.size()) == 2 else x.size(1)
+        
+        # Reshape for multi-head attention
+        Q = self.Q(x).view(B, N, self.n_heads, self.dim_k)
+        K = self.K(x).view(B, N, self.n_heads, self.dim_k)
+        V = self.V(x).view(B, N, self.n_heads, self.dim_k)
+        
+        # Scaled dot-product attention
+        scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.dim_k)
+        
+        if mask is not None:
+            scores = scores.masked_fill(mask == 0, -1e9)
+        
+        # Apply attention
+        attention = F.softmax(scores, dim=-1)
+        out = torch.matmul(attention, V)
+        
+        # Reshape and project output
+        out = out.reshape(B, N, -1)
+        return self.out(out)

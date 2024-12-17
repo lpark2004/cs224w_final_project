@@ -155,6 +155,7 @@ class Predictor(nn.Module):
         x = torch.sigmoid(x)
         return x
 
+
 class ComHG_attention(nn.Module):
     def __init__(self, dim_in, dim_out, atten_type, atten_combine, dim_atten: int=2, negative_slope: float=0.2):
         super().__init__()

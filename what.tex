@@ -1,0 +1,193 @@
+\documentclass{article}
+
+\usepackage[final]{neurips_2019}
+
+\usepackage{amsmath}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{lipsum}
+
+\newcommand{\note}[1]{\textcolor{blue}{{#1}}}
+
+\title{
+  Hierarchical Link Prediction with Embeddings \\
+  \vspace{1em}
+  \small{\normalfont Stanford CS224W Project}  % Select one and delete the other
+}
+
+\author{
+  Luke Park \\
+  Department of Mathematics \\
+  Stanford University \\
+  \texttt{luke2004@stanford.edu} \\
+   \And
+   Irfan Nafi \\
+   Department of Physics \\
+   Stanford University \\
+   \texttt{inafi@stanford.edu} \\
+   \And
+   Ray Hotate \\
+   Department of Computer Science \\
+   Stanford University \\
+   \texttt{rayhtt@stanford.edu}
+}
+
+\begin{document}
+
+\maketitle
+
+\section{Application Domain}
+
+\paragraph{Dataset Description} 
+
+The dataset we will be using is ogbl-wikikg2 \cite{ogblwikikg2dataset}, which is a knowledge graph derived from Wikidata. It consists of triplet edges in the form of (head, relation, tail), representing various types of relationships between entities such as locations and notable figures. The dataset includes 2,500,604 entities and 535 distinct relation types. The dataset is also split according to time to reflect real-world knowledge graph completion scenarios.
+
+\paragraph{Task / Metric}
+
+The task is to predict new edges by replacing heads or tails with negative samples, aiming to rank true entities higher than false ones, with performance measured using Mean Reciprocal Rank (MRR). 
+
+\paragraph{Motivation}
+
+Having a better understanding of concepts and their relationships to each other can significantly improve search algorithms. This has untold benefits, from drug discovery to corporate knowledge management.
+
+\section{Graph ML Techniques}
+
+\paragraph{Model Choice} 
+
+Relational Graph Attention Network
+
+\paragraph{Model Overview}
+We propose a Graph Attention Network that pools together structural information along with text-based embeddings to capture the graph features and semantic meaning of the text in the knowledge graph.
+
+We will create communities based on the Leiden algorithm. These communities will be compressed into a supernode, resulting in a compressed graph, where we know which community a node from the uncompressed graph belongs to. These supernodes will have features that convey the embeddings of their member nodes with some attention mechanism. Because nearby communities are likely to be similar to each other, having this global context can be useful in understanding what edges should exist. Thus, the Leiden-based embedding, $l_v$, will consist of the distance a node is to other communities.
+
+We also want to pass in additional structural features. To update the node structure-based embedding $h_v^{(k)}$, we propose an advanced multi-head attention mechanism inspired by recent developments in graph transformers and heterogeneous graph neural networks \cite{hu2020heterogeneous, yun2019graph}. The base update equation incorporates both local and global attention:
+
+\begin{align}
+    h_v^{(k+1)} = \sigma \left( \text{FFN}\left(\text{MultiHead}\left(\text{Local}(v) + \text{Global}(v)\right)\right) \right)
+\end{align}
+
+where the local attention component captures neighborhood information:
+
+\begin{align}
+    \text{Local}(v) = \sum_{i=1}^H \sum_{u \in N(v)} \alpha_{vu}^i W_r^{(k)} h_u^{(k)}
+\end{align}
+
+and the global attention component captures community-level patterns:
+
+\begin{align}
+    \text{Global}(v) = \sum_{i=1}^H \sum_{c \in C} \beta_{vc}^i V_r^{(k)} \left(\frac{1}{|c|}\sum_{u \in c} h_u^{(k)}\right)
+\end{align}
+
+The multi-head attention coefficients are computed using scaled dot-product attention:
+
+\begin{align}
+    \alpha_{vu}^i = \text{softmax}\left(\frac{(W_Q^i h_v^{(k)})(W_K^i h_u^{(k)})^T}{\sqrt{d_k}} + M_{vu}\right)
+\end{align}
+
+\begin{align}
+    \beta_{vc}^i = \text{softmax}\left(\frac{(V_Q^i h_v^{(k)})(V_K^i \frac{1}{|c|}\sum_{u \in c} h_u^{(k)})^T}{\sqrt{d_k}} + P_{vc}\right)
+\end{align}
+
+where $H$ is the number of attention heads, $M_{vu}$ is a learnable edge-type specific mask, $P_{vc}$ is a learnable position encoding between node $v$ and community $c$, and $\text{FFN}$ is a position-wise feed-forward network. This hierarchical attention mechanism allows the model to simultaneously capture both fine-grained node relationships and coarse-grained community structures by aggregating node embeddings within each community.
+
+Finally, we wish to pass in text embeddings for the entities and relationships. These embeddings will be generated via an embedding model (either locally or via an API). Note that the text embeddings will not be a learned parameter, we do not have the computational resources to also fine-tune this model. We will concatenate the structural embeddings $h_v^{k}$, the relationship embedding for the given relationship type, the Leiden community distance vector representation for vertex $v$, $l_v$, and concatenate the pooling of the text embeddings for neighboring entities. This concatenation will be an aggregation method done on a relationship-type basis at every vertex. The outermost aggregation will simply be a MLP.
+
+\begin{align}
+    t_v &\rightarrow \text{ text embedding for node $v$ at step} \\
+    c_v^{(k)} &\rightarrow \text{ the combined embedding of node $v$ at step $(k)$} \\
+    z_r^ &\rightarrow \text{ the text embedding of relationship $r$} \\
+    l_v &\rightarrow \text{ a vector consisting of the distances to other communities} \\
+    c_v^{(k+1)} = AGG_{all}^{k+1} \left(AGG_{r}^{(k+1)} \right) &= AGG_{all}^{k+1} \left( \begin{bmatrix}
+         h_v^{k+1} \\
+         \sigma \left(\sum_{u \in N_r(v)} \left( \alpha_{vu} {W'}_{r}^{(k)} t_u \right)  + {W'}_o^{(k)} t_u\right) \\
+         z_r^{(k)} \\
+         l_v
+    \end{bmatrix} \right) \\
+    AGG_{all}^{k+1} \text{ is a MLP} \\
+\end{align}
+
+Objective Function:
+\begin{align}
+    %s = c_{v_i}^T W_{r_n} c_{v_k} &\approx 0 \text{ if $(v_i, r_n, v_k) \not \in G$} \\
+    %s = c_{v_i}^T W_{r_n} c_{v_k} &\approx 1 \text{ if $(v_i, r_n, v_k) \in G$} \\ 
+     s &= c_{v_i}^T W_{r_n} c_{v_k} \approx 
+    \begin{cases}
+    0 & \text{if edge } (v_i, r_n, v_k) \text{ is not in graph } G \\
+    1 & \text{if edge } (v_i, r_n, v_k) \text{ is in graph } G
+    \end{cases} \\
+    L &= \sum_{(v_i, r_n, v_k) \in G} \sum_{v_k^- \notin G} \frac{1}{\text{rank}(s(v_i, r_n, v_k)) + 1} + \lambda \sum_{r_n} ||W_{r_n}||_2^2
+\end{align}
+
+% Core equations for hierarchical attention model
+\begin{align*}
+% Text and relation encoding
+t_v &= \text{TextEncoder}(v_{text}) \\[5pt]
+r_v &= \text{RelationEncoder}(v_{relation}) \\[10pt]
+
+% Base update equation combining local and global attention
+h_v^{(k+1)} &= \sigma \left( \text{FFN}\left(\text{MultiHead}\left(\text{Local}(v) + \text{Global}(v)\right)\right) \right) \\[10pt]
+
+% Local attention component with shared weights
+\text{Local}(v) &= \text{MultiHead}(Q_l(t_v), K_l(t_u), V_l(t_u)) \\
+&= \sum_{i=1}^H \text{Attention}_i(Q_l(t_v), K_l(t_u), V_l(t_u)) \\[10pt]
+
+% Global community attention with shared weights
+\text{Global}(v) &= \text{MultiHead}(Q_g(t_v), K_g(c_u), V_g(c_u)) \\
+&\text{where } c_u = \frac{1}{|C_u|}\sum_{v \in C_u} t_v \\[10pt]
+
+% Multi-head attention mechanism
+\text{Attention}(Q, K, V) &= \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V \\[10pt]
+
+% Community encoding
+c_v &= \text{CommunityEncoder}(\text{OneHot}(v_{community})) \\[10pt]
+
+% Feature combination
+\text{Combined}(v_i, v_j) &= \text{concat}\begin{bmatrix}
+    x_{original} \\
+    \text{Local}(v_i) \odot \text{Local}(v_j) \\
+    \text{Global}(v_i) \odot \text{Global}(v_j)
+\end{bmatrix} \\[10pt]
+
+% Final prediction
+y &= \sigma(\text{MLP}(\text{Combined}(v_i, v_j))) \\[10pt]
+
+% Loss function with ranking and regularization
+L &= \sum_{(v_i, r_n, v_k) \in G} \sum_{v_k^- \notin G} \frac{1}{\text{rank}(y(v_i, r_n, v_k)) + 1} + \lambda \sum_{r_n} ||W_{r_n}||_2^2
+\end{align*}
+
+\text{where:}
+\begin{itemize}
+\item $t_v$ is the text embedding for node $v$
+\item $r_v$ is the relation embedding
+\item $H$ is the number of attention heads
+\item $d_k$ is the dimension of the keys
+\item $\odot$ represents element-wise multiplication
+\item $C_u$ represents the community containing node $u$
+\item $\sigma$ is the sigmoid activation function
+\end{itemize}
+
+To train the model, for each valid edge \((v_i, r_n, v_k)\) from the graph \(G\), we sample negative edges \((v_i, r_n, v_k^-)\) where \(v_k^-\) is a node not connected to \(v_i\) by \(r_n\). The rank loss is defined above, where the rank refers to the position of the valid edge's score among all candidate edges for that triplet. To prevent overfitting, we add a regularization term on the learned weights \(W_{r_n}\).
+
+\paragraph{Things to Consider} One of the major problems with what we have approached right now is the fact that we have to learn many different weight matrices which could lead to overfitting and massive computational overhead. This is something that we will have to explore and have to consolidate in our training. Moreover, most likely, we will have to project the text embeddings into a lower dimensional space since the dimensionality of the graph embeddings and features will not be that high dimensional. 
+
+\paragraph{Model Fit Explanation} 
+
+Our proposed Graph Attention Network (GAT) model is particularly well-suited for the ogbl-wikikg2 \cite{ogblwikikg2dataset} dataset due to its large scale and complex structure. The dataset comprises millions of entities and hundreds of relation types, making it essential to choose a model that can effectively capture intricate relationships within the graph. GATs offer a significant advantage by utilizing attention mechanisms that assign varying weights to neighboring nodes, allowing the model to focus on the most important connections. This is particularly valuable for knowledge graphs, where certain relationships are more meaningful than others. By learning to prioritize the most relevant neighbors, GATs improve the accuracy of link prediction tasks.
+
+In addition to leveraging attention, our model incorporates the Leiden algorithm for community detection, which helps uncover hierarchical structures in the graph. By identifying densely connected communities, we introduce a global perspective that enhances the model’s ability to predict relationships over longer distances. This community-based approach enriches the node representations, giving the model a more comprehensive understanding of both local and global patterns.
+
+Furthermore, we integrate text embeddings to capture the semantic meaning of entities and relationships within the graph. Since many nodes and edges are associated with textual descriptions, incorporating these embeddings allows the model to go beyond structural information and incorporate the underlying semantics of the data. This multimodal approach, combining graph structure with text-based insights, is well-suited for knowledge graph completion tasks, where both topology and meaning are critical. Our GAT-based model, therefore, provides a powerful method for harnessing the full complexity of the *ogbl-wikikg2* dataset, making it an ideal fit for predicting missing links.
+
+\bibliographystyle{acl_natbib}
+\bibliography{references}
+
+\end{document}

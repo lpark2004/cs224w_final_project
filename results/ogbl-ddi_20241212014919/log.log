@@ -1,7 +1,0 @@
-Namespace(float=<class 'numpy.float32'>, dataset='ogbl-ddi', result_appendix='_20241212014919', device=device(type='cuda'), directed=False, coalesce=True, use_weight=False, use_val=False, collab_year=2010, use_feature=False, use_node_emb=True, use_dist=False, use_cn=False, use_aa=False, use_ja=False, use_ra=False, use_degree=False, max_dist=3, max_cn=100, max_aa=100, max_ja=100, max_ra=20, max_degree=1000, mag_ja=100, mag_aa=10, mag_ra=10, heurisctic_reproduce=False, heurisctic_batch_size=100, heurisctic_directed=False, heurisctic_reuse=True, neg_size=2000, adj_hop=2, adj_neg=0.0, adj_neg_dist=10, adj_weight='same', atten_type='Multiply', atten_combine='plus', bias=True, dim_node_emb=512, dim_encoding=32, dim_atten=8, dim_hidden=None, n_layers=2, n_heads=1, n_layers_mlp=5, residual=True, reduce='add', negative_slope=0.2, num_workers=64, optimizer='Adam', clip_grad_norm=1.0, use_layer_norm=False, dropout=0.25, dropout_adj=0.0, lr=0.002, lr_mini=1e-05, scheduler_gamma=0.997, shuffle=True, runs=10, epochs=2000, eval_epoch=1, batch_size=100000, batch_num=1000, world_size=2, local_rank=-1, eval_metrics='Hits@20', hitK=[20], dense_sparse='dense', dir_result='results/ogbl-ddi_20241212014919')
-Hits@20
-Hits@50
-Hits@100
-MRR
-AUC
-ACC
